@@ -1,0 +1,701 @@
+---
+title: "Housing Prices"
+author: "Teoshen"
+date: "2025-04-29"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+#libraries
+library(readxl) 
+library(ggplot2) 
+library(caret) 
+library(MASS) 
+library(dslabs) 
+library(tidyverse) 
+library(randomForest) 
+library(Rborist) 
+library(caretEnsemble) 
+library(rpart.plot)
+library(Metrics)
+library(naniar)
+library(tidyverse)
+library(xgboost)
+```
+
+## Section 1: Loading the data (5 points)
+
+```{r}
+test_base <- read.csv("C:/Users/timot/Downloads/home-data-for-ml-course/test.csv")
+
+train_base <- read.csv("C:/Users/timot/Downloads/home-data-for-ml-course/train.csv")
+```
+
+## Section 2: Descriptive Statistics (including charts); include any discussion of contextual knowledge (15 points)
+
+## Section 3: Dealing with Missing Data (5 points)
+
+There is a lot of missing data.
+
+```{r}
+miss_var_summary(train_base)
+```
+
+```{r}
+miss_var_summary(test_base)
+```
+
+\
+
+```{r}
+
+##I could have done a few loops here but didn't go about it in a very efficient manner so I already had written out all the onesies before realizing how I could have put it in loops.
+
+##In both test_base and train_base
+##
+
+#PoolQC
+ #na is no pool. Quality is not important
+test_base <- test_base %>%
+  mutate(PoolQC = ifelse(is.na(PoolQC), "None", "Pool"))
+train_base <- train_base %>%
+  mutate(PoolQC = ifelse(is.na(PoolQC), "None", "Pool"))
+
+#MiscFeature
+ #na is no extra features, type of feature is not important
+test_base <- test_base %>%
+  mutate(MiscFeature = ifelse(is.na(MiscFeature), "None", "Misc"))
+train_base <- train_base %>%
+  mutate(MiscFeature = ifelse(is.na(MiscFeature), "None", "Misc"))
+
+#Alley
+ #na is no alley access. type is not important
+test_base <- test_base %>%
+  mutate(Alley = ifelse(is.na(Alley), "None", "Alley"))
+train_base <- train_base %>%
+  mutate(Alley = ifelse(is.na(Alley), "None", "Alley"))
+
+#Fence
+ #na is no fence, but the type of fence is important
+test_base <- test_base %>%
+  mutate(Fence = ifelse(is.na(Fence), "None", Fence))
+train_base <- train_base %>%
+  mutate(Fence = ifelse(is.na(Fence), "None", Fence))
+
+#FireplaceQu
+ #na is no fireplace. type is not important
+test_base <- test_base %>%
+  mutate(FireplaceQu = ifelse(is.na(FireplaceQu), "None", "FireplaceQu"))
+train_base <- train_base %>%
+  mutate(FireplaceQu = ifelse(is.na(FireplaceQu), "None", "FireplaceQu"))
+
+#LotFrontage
+ #linear feet of street connected to property, do an average by number of bedrooms
+test_base <- test_base %>%
+  group_by(BedroomAbvGr) %>%
+  mutate(LotFrontage = ifelse(is.na(LotFrontage), floor(mean(LotFrontage, na.rm =  TRUE)), LotFrontage)) %>%
+  ungroup()
+train_base <- train_base %>%
+  group_by(BedroomAbvGr) %>%
+  mutate(LotFrontage = ifelse(is.na(LotFrontage), floor(mean(LotFrontage, na.rm =  TRUE)), LotFrontage)) %>%
+  ungroup()
+
+#GarageType
+ #na is no garage, but the type of garage is important
+test_base <- test_base %>%
+  mutate(GarageType = ifelse(is.na(GarageType), "None", GarageType))
+train_base <- train_base %>%
+  mutate(GarageType = ifelse(is.na(GarageType), "None", GarageType))
+
+#GarageYrBlt
+ #year garage was build, do an average by neighborhood
+test_base <- test_base %>%
+  group_by(Neighborhood) %>%
+  mutate(GarageYrBlt = ifelse(is.na(GarageYrBlt), floor(mean(GarageYrBlt, na.rm =  TRUE)), GarageYrBlt)) %>%
+  ungroup()
+train_base <- train_base %>%
+  group_by(Neighborhood) %>%
+  mutate(GarageYrBlt = ifelse(is.na(GarageYrBlt), floor(mean(GarageYrBlt, na.rm =  TRUE)), GarageYrBlt)) %>%
+  ungroup()
+
+#GarageFinish
+ #na is no garage, but the type is important
+test_base <- test_base %>%
+  mutate(GarageFinish = ifelse(is.na(GarageFinish), "None", GarageFinish))
+train_base <- train_base %>%
+  mutate(GarageFinish = ifelse(is.na(GarageFinish), "None", GarageFinish))
+
+#GarageQual
+ #na is no garage, the type is not important
+test_base <- test_base %>%
+  mutate(GarageQual = ifelse(is.na(GarageQual), "None", "GarageQual"))
+train_base <- train_base %>%
+  mutate(GarageQual = ifelse(is.na(GarageQual), "None", "GarageQual"))
+
+#GarageCond
+ #na is no garage, the type is not important
+test_base <- test_base %>%
+  mutate(GarageCond = ifelse(is.na(GarageCond), "None", "GarageCond"))
+train_base <- train_base %>%
+  mutate(GarageCond = ifelse(is.na(GarageCond), "None", "GarageCond"))
+
+#BsmtExposure
+ #na is no exposure, type is important
+test_base <- test_base %>%
+  mutate(BsmtExposure = ifelse(is.na(BsmtExposure), "None", BsmtExposure))
+train_base <- train_base %>%
+  mutate(BsmtExposure = ifelse(is.na(BsmtExposure), "None", BsmtExposure))
+
+#BsmtFinType2
+ #na is no basement, type is important
+test_base <- test_base %>%
+  mutate(BsmtFinType2 = ifelse(is.na(BsmtFinType2), "None", BsmtFinType2))
+train_base <- train_base %>%
+  mutate(BsmtFinType2 = ifelse(is.na(BsmtFinType2), "None", BsmtFinType2))
+
+#BsmtQual
+ #height of basement. NA is no basement, type is important
+test_base <- test_base %>%
+  mutate(BsmtQual = ifelse(is.na(BsmtQual), "None", BsmtQual))
+train_base <- train_base %>%
+  mutate(BsmtQual = ifelse(is.na(BsmtQual), "None", BsmtQual))
+
+#BsmtCond
+ #na is no basement, type is important
+test_base <- test_base %>%
+  mutate(BsmtCond = ifelse(is.na(BsmtCond), "None", BsmtCond))
+train_base <- train_base %>%
+  mutate(BsmtCond = ifelse(is.na(BsmtCond), "None", BsmtCond))
+
+#BsmtFinType1
+ #rating of living space, na is no basement, type is important
+test_base <- test_base %>%
+  mutate(BsmtFinType1 = ifelse(is.na(BsmtFinType1), "None", BsmtFinType1))
+train_base <- train_base %>%
+  mutate(BsmtFinType1 = ifelse(is.na(BsmtFinType1), "None", BsmtFinType1))
+
+#MasVnrType
+ #masonry veneer. Default to None
+test_base <- test_base %>%
+  mutate(MasVnrType = ifelse(is.na(MasVnrType), "None", MasVnrType))
+train_base <- train_base %>%
+  mutate(MasVnrType = ifelse(is.na(MasVnrType), "None", MasVnrType))
+
+#MasVnrArea
+ #area in square feet. For non-None types, do the average. For None, do 0
+test_base <- test_base %>%
+  mutate(MasVnrArea = ifelse(is.na(MasVnrArea), floor(mean(MasVnrArea, na.rm =  TRUE)), MasVnrArea))
+train_base <- train_base %>%
+  mutate(MasVnrArea = ifelse(is.na(MasVnrArea), floor(mean(MasVnrArea, na.rm =  TRUE)), MasVnrArea))
+ 
+
+#Electrical
+ #electrical system type, assume FuseF for na
+test_base <- test_base %>%
+  mutate(Electrical = ifelse(is.na(Electrical), "FuseF", Electrical))
+train_base <- train_base %>%
+  mutate(Electrical = ifelse(is.na(Electrical), "FuseF", Electrical))
+
+##Only in test_base
+##
+
+#MSZoning
+ #general class of zoning. Hard to class, come back to this one.
+ #going to roll the dice and just assume they're all RL
+test_base <- test_base %>%
+  mutate(MSZoning = ifelse(is.na(MSZoning), "RL", MSZoning))
+
+#Utilities
+ #Type of utilities offered. Assume AllPub?
+test_base <- test_base %>%
+  mutate(Utilities = ifelse(is.na(Utilities), "AllPub", Utilities))
+
+#BsmtFullBath
+ #number of basement full bathrooms. For non-na basements, do the average
+test_base <- test_base %>%
+  mutate(BsmtFullBath = ifelse(!is.na(BsmtFinType2) & is.na(BsmtFullBath), floor(mean(BsmtFullBath[!is.na(BsmtFullBath) & !is.na(BsmtFinType2)], na.rm =  TRUE)), BsmtFullBath))
+
+#BsmtHalfBath
+ #same as full
+test_base <- test_base %>%
+  mutate(BsmtHalfBath = ifelse(!is.na(BsmtFinType2) & is.na(BsmtHalfBath), floor(mean(BsmtHalfBath[!is.na(BsmtHalfBath) & !is.na(BsmtFinType2)], na.rm =  TRUE)), BsmtHalfBath))
+
+#Functional
+ #according to data sheet, this should be assumed Typ	
+test_base <- test_base %>%
+  mutate(Functional = ifelse(is.na(Functional), "Typ", Functional))
+
+#Exterior1st
+ #type of siding, default to most common type.
+#test_base %>%
+ # count(test_base$Exterior1st) %>%
+#  arrange(desc(n)) %>%
+ # slice(1)
+#vinyl siding is most common
+test_base <- test_base %>%
+  mutate(Exterior1st = ifelse(is.na(Exterior1st), "VinylSd", Exterior1st))
+
+#Exterior2nd
+ #secondary type of siding material. Default to the first type of material.
+test_base <- test_base %>%
+  mutate(Exterior2nd = ifelse(is.na(Exterior2nd), Exterior1st, Exterior2nd))
+
+#BsmtFinSF1	
+ #amount of basement finished square footage. For non-na basements, do the average
+test_base <- test_base %>%
+  mutate(BsmtFinSF1 = ifelse(!is.na(BsmtFinType2), floor(mean(BsmtFinSF1, na.rm =  TRUE)), BsmtFinSF1))
+
+#BsmtFinSF2		
+ #quality of finished space. type is important.
+test_base <- test_base %>%
+  mutate(BsmtFinSF2 = ifelse(is.na(BsmtFinSF2), "0", BsmtFinSF2))
+
+#BsmtUnfSF		
+ #amount of basement unfinished square footage. For non-na basements, do the average.
+test_base <- test_base %>%
+  mutate(BsmtUnfSF = ifelse(!is.na(BsmtFinType2) & is.na(BsmtUnfSF), floor(mean(BsmtUnfSF[!is.na(BsmtUnfSF) & !is.na(BsmtFinType2)], na.rm =  TRUE)), BsmtUnfSF))
+
+#TotalBsmtSF		
+ #total basement square footage. For non-na basements, do the average.
+test_base <- test_base %>%
+  mutate(TotalBsmtSF = ifelse(is.na(TotalBsmtSF), floor(mean(TotalBsmtSF, na.rm = TRUE)), TotalBsmtSF))
+
+#KitchenQual
+ #for na, assume TA
+test_base <- test_base %>%
+  mutate(KitchenQual = ifelse(is.na(KitchenQual), "TA", KitchenQual))
+
+#GarageCars	
+ #size of garage in car capacity. Assume 2?
+test_base <- test_base %>%
+  mutate(GarageCars = ifelse(is.na(GarageCars), "2", GarageCars))
+
+#GarageArea	
+ #size of garage in sq ft, assume average for non-na
+test_base <- test_base %>%
+  mutate(GarageArea = ifelse(is.na(GarageArea), floor(mean(GarageArea, na.rm = TRUE)), GarageArea))
+
+#SaleType	
+ #type of sale, hard to class.
+ #going to assume it is WD since that is overwhelmingly the most common
+test_base <- test_base %>%
+  mutate(SaleType = ifelse(is.na(SaleType), "WD", SaleType))
+
+```
+
+```{r}
+miss_var_summary(train_base)
+```
+
+```{r}
+miss_var_summary(test_base)
+```
+
+Much better!
+
+## Section 4: Feature Engineering (if any) (10 points)
+
+Change some columns to factors:
+
+```{r}
+
+factor_names <- c("Alley",
+#"BedroomAbvGr",
+"BldgType",
+"BsmtCond",
+"BsmtExposure",
+"BsmtFinType1",
+"BsmtFinType2",
+#"BsmtFullBath",
+#"BsmtHalfBath",
+"BsmtQual",
+"CentralAir",
+"Condition1",
+"Condition2",
+"Electrical",
+"ExterCond",
+"Exterior1st",
+"Exterior2nd",
+"ExterQual",
+"Fence",
+"FireplaceQu",
+#"Fireplaces",
+"Foundation",
+#"FullBath",
+"Functional",
+#"GarageCars",
+"GarageCond",
+"GarageFinish",
+"GarageQual",
+"GarageType",
+#"HalfBath",
+"Heating",
+"HeatingQC",
+"HouseStyle",
+"KitchenAbvGr",
+"KitchenQual",
+"LandContour",
+"LandSlope",
+"LotConfig",
+"LotShape",
+"MasVnrType",
+"MiscFeature",
+"MoSold",
+#"MSSubClass",
+"MSZoning",
+"Neighborhood",
+"OverallCond",
+"OverallQual",
+"PavedDrive",
+"PoolQC",
+"RoofMatl",
+"RoofStyle",
+"SaleCondition",
+"SaleType",
+"Street",
+#"TotRmsAbvGrd",
+"Utilities"
+#"YrSold"
+)
+
+for (i in factor_names) {
+  train_base[[i]] <- as.factor(train_base[[i]])
+test_base[[i]] <- as.factor(test_base[[i]])
+}
+```
+
+Make some variables into consistent data types:
+
+```{r}
+test_base$BsmtFinSF2 <- as.numeric(test_base$BsmtFinSF2)
+test_base$GarageCars <- as.numeric(test_base$GarageCars)
+
+train_base$BsmtFinSF2 <- as.numeric(train_base$BsmtFinSF2)
+train_base$GarageCars <- as.numeric(train_base$GarageCars)
+```
+
+```{r}
+#create data partition
+test_index <- createDataPartition(train_base$SalePrice, times = 1, p=0.5, list=FALSE) 
+test_set <- train_base[test_index,] 
+train_set <- train_base[-test_index,]
+```
+
+Total square feet, the combination of Above Grade Living Area and total
+Basement SF
+
+```{r}
+train_set <- train_set %>%
+  mutate(TotalSF = sum(train_set$GrLivArea, train_set$TotalBsmtSF))
+
+test_set <- test_set %>%
+  mutate(TotalSF = sum(test_set$GrLivArea, test_set$TotalBsmtSF))
+```
+
+Total finished area, combination of Above Grade Living Area and finished
+Basement SF
+
+```{r}
+train_set <- train_set %>%
+  mutate(TotalSF = sum(train_set$GrLivArea, train_set$BsmtFinSF1))
+
+test_set <- test_set %>%
+  mutate(TotalSF = sum(test_set$GrLivArea, test_set$BsmtFinSF1))
+```
+
+Simplified condition/grade combination
+
+```{r}
+train_set <- train_set %>%
+  mutate(OverallScore = OverallQual * OverallCond)
+
+test_set <- test_set %>%
+  mutate(OverallScore = OverallQual * OverallCond)
+```
+
+Through some trial and error, some fields did not have sufficient
+variance and data to be useful. These were:
+
+Alley, Utilities, FireplaceQu, GarageCond, GarageQual, PoolQC,
+MiscFeature
+
+## Section 5: Feature Selection (5 points)
+
+#### GLM
+
+GLM gets a StepAIC
+
+```{r}
+train_glm <- glm(SalePrice ~ MSZoning + MSSubClass + LotFrontage +  LotArea + Street + LotShape + LandContour + LotConfig + LandSlope + Neighborhood + Condition1+ Condition2 + BldgType + HouseStyle + OverallQual + OverallCond + YearBuilt + YearRemodAdd + RoofStyle + RoofMatl + Exterior1st + Exterior2nd + MasVnrType + MasVnrArea + ExterQual + ExterCond + Foundation + BsmtQual + BsmtCond + BsmtExposure + BsmtFinType1 + BsmtFinSF1 + BsmtFinType2 + BsmtFinSF2 + BsmtUnfSF + TotalBsmtSF + Heating + HeatingQC + CentralAir + Electrical + X1stFlrSF + X2ndFlrSF+ LowQualFinSF + GrLivArea + BsmtFullBath + BsmtHalfBath + FullBath + HalfBath + BedroomAbvGr + KitchenAbvGr + KitchenQual+ TotRmsAbvGrd + Functional + Fireplaces + GarageType + GarageYrBlt + GarageFinish + GarageCars + GarageArea + PavedDrive + WoodDeckSF + OpenPorchSF + EnclosedPorch + X3SsnPorch + ScreenPorch + PoolArea + Fence + MiscVal + MoSold + YrSold + SaleType + SaleCondition, data = train_set, family = gaussian)
+
+stepAIC(train_glm, direction = "both")
+```
+
+```         
+MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition
+```
+
+Here's our values, but it should be noted that we spent a lot of compute
+to get a few hundred off our AIC. We'll see if that pays off later.
+
+#### KNN
+
+KNN will use the values that the GLM model liked and check for best
+neighbors.
+
+```{r}
+train_knn <- train(SalePrice  ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, method = "knn", data = train_set, tuneGrid = data.frame(k = seq(9, 71, 2)))
+
+ggplot(train_knn, highlight = TRUE)
+```
+
+Don't know why my neighbors are so low, doesn't seem to matter how many
+variables I put into the model.
+
+```{r}
+train_knn$bestTune
+```
+
+#### Decision Tree
+
+```{r}
+train_dt <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, method = "rpart", tuneGrid = data.frame(cp=seq(0,0.05, len = 25)), data = train_set)
+
+ggplot(train_dt, highlight = TRUE)
+```
+
+```{r}
+rpart.plot(train_dt$finalModel)
+```
+
+#### Random Forest
+
+```{r}
+train_rf <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, method = "rf", tuneGrid = expand.grid(mtry = c(3,5)), data = train_set)
+```
+
+```{r}
+train_rf$bestTune
+```
+
+#### XgBoost
+
+I found this one in a reddit thread and then the tuning in stackoverflow
+and it seemed neat. Takes forever to run.
+
+```{r}
+train_xgb <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, data = train_set, method = "xgbTree", trControl = trainControl(method = "cv", number = 5, verboseIter = TRUE), tuneGrid = expand.grid(nrounds = c(100, 200), max_depth = c(3,6,9), eta = c(0.01, 0.1, 0.3), gamma = c(0, 1), colsample_bytree = c(0.6, 0.8, 1.0), min_child_weight = c(1,5), subsample = c(0.6, 0.8, 1.0)))
+
+train_xgb$finalModel
+
+train_xgb$bestTune
+```
+
+## Section 6: Comparing Models & Tuning parameters (you can have subsections if you’d like) (25 points; each unique model is worth 5 points – you’ll need to do 5 to get full credit; you can’t get “extra credit” by doing more)
+
+#### GLM
+
+```{r}
+test_glm <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, family = gaussian, data = train_base)
+
+saleprice_hat_glm <- predict(test_glm, test_set, type = "raw")
+rmse(saleprice_hat_glm, test_set$SalePrice)
+```
+
+12151.42
+
+#### KNN
+
+```{r}
+test_knn <- train(SalePrice ~ MSZoning + LotFrontage + LotArea +      Street + Neighborhood + Condition1 + OverallQual + OverallCond +      YearBuilt + YearRemodAdd + RoofMatl + Exterior1st + Exterior2nd +      BsmtQual + BsmtCond + BsmtExposure + BsmtFinType1 + BsmtFinSF1 +      BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + LowQualFinSF +      KitchenAbvGr + TotRmsAbvGrd + Functional + Fireplaces + GarageFinish +      GarageCars + WoodDeckSF + X3SsnPorch + ScreenPorch + SaleCondition, data = train_base, method = "knn", tuneGrid = data.frame(k = 11))
+
+saleprice_hat_knn <- predict(test_knn, test_set, type = "raw")
+rmse(saleprice_hat_knn, test_set$SalePrice)
+```
+
+47422.22
+
+#### Decision Tree
+
+```{r}
+test_dt <- train(SalePrice ~ MSZoning + LotFrontage + LotArea +      Street + Neighborhood + Condition1 + OverallQual + OverallCond +      YearBuilt + YearRemodAdd + RoofMatl + Exterior1st + Exterior2nd +      BsmtQual + BsmtCond + BsmtExposure + BsmtFinType1 + BsmtFinSF1 +      BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + LowQualFinSF +      KitchenAbvGr + TotRmsAbvGrd + Functional + Fireplaces + GarageFinish +      GarageCars + WoodDeckSF + X3SsnPorch + ScreenPorch + SaleCondition, method = "rpart", tuneGrid = data.frame(cp= 0.01), data = train_base)
+
+saleprice_hat_dt <- predict(test_dt, test_set, type = "raw")
+rmse(saleprice_hat_dt, test_set$SalePrice)
+```
+
+39894.77
+
+#### Random Forest
+
+```{r}
+test_rf <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, method = "rf", tuneGrid = expand.grid(mtry = 5), data = train_base)
+
+saleprice_hat_rf <- predict(test_rf, test_set, type = "raw")
+rmse(saleprice_hat_rf, test_set$SalePrice)
+```
+
+21155.26
+
+#### XgBoost
+
+```{r}
+test_xgb <- train(SalePrice ~ MSZoning + MSSubClass + LotFrontage + LotArea + Street + 
+    LandContour + LotConfig + LandSlope + Neighborhood + Condition1 + 
+    Condition2 + OverallQual + OverallCond + YearBuilt + YearRemodAdd + 
+    RoofMatl + MasVnrType + MasVnrArea + ExterQual + BsmtExposure + 
+    BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + X1stFlrSF + X2ndFlrSF + 
+    BsmtFullBath + BedroomAbvGr + KitchenAbvGr + KitchenQual + 
+    TotRmsAbvGrd + Functional + GarageArea + WoodDeckSF + OpenPorchSF + 
+    EnclosedPorch + X3SsnPorch + ScreenPorch + MoSold + SaleCondition, data = train_base, method = "xgbTree", trControl = trainControl(method = "cv", number = 5), tuneGrid = expand.grid(nrounds = 200, max_depth = 9, eta = 0.1, gamma = 0, colsample_bytree = .08, min_child_weight = 1, subsample = 0.8))
+
+saleprice_hat_xgb <- predict(test_xgb, test_set, type = "raw")
+rmse(saleprice_hat_xgb, test_set$SalePrice)
+```
+
+4093.853
+
+## Section 7: Ensembles (10 points)
+
+For our ensemble, we'll use GLM, RF, and XGB, our best performers.
+
+```{r}
+saleprice_ensemble <- rowMeans(cbind(saleprice_test_glm, saleprice_test_rf, saleprice_test_xgb))
+
+
+submission_ensemble <- test_base %>%   
+  select(Id) %>%   
+  mutate(SalePrice = saleprice_ensemble) 
+
+write.csv(submission_ensemble, 'submission_ensemble.csv', row.names = FALSE)
+```
+
+19927.57566. Only ever so slightly worse than GLM by itself.
+
+## Section 8: Prediction (write your solution to a csv file) (5 points)
+
+#### GLM
+
+```{r}
+saleprice_test_glm <- (predict(test_glm, test_base, type = "raw")) 
+submission_glm <- test_base %>%   
+  dplyr::select(Id) %>%   
+  mutate(SalePrice = saleprice_test_glm) 
+
+write.csv(submission_glm, 'submission_glm.csv', row.names = FALSE)
+```
+
+Submitted with a score of 19915.46909. That seems pretty good!
+
+#### KNN
+
+```{r}
+saleprice_test_knn <- (predict(test_knn, test_base, type = "raw")) 
+submission_knn <- test_base %>%   
+  dplyr::select(Id) %>%   
+  mutate(SalePrice = saleprice_test_knn) 
+
+write.csv(submission_knn, 'submission_knn.csv', row.names = FALSE)
+```
+
+41473.38284. Not that great, maybe my neighbors are off.
+
+#### Decision Tree
+
+```{r}
+saleprice_test_dt <- (predict(test_dt, test_base, type = "raw")) 
+submission_dt <- test_base %>%   
+  dplyr::select(Id) %>%   
+  mutate(SalePrice = saleprice_test_dt) 
+
+write.csv(submission_dt, 'submission_dt.csv', row.names = FALSE)
+```
+
+32613.40780. Not awful.
+
+#### Random Forest
+
+```{r}
+saleprice_test_rf <- (predict(test_rf, test_base, type = "raw")) 
+submission_rf <- test_base %>%   
+  dplyr::select(Id) %>%   
+  mutate(SalePrice = saleprice_test_rf) 
+
+write.csv(submission_rf, 'submission_rf.csv', row.names = FALSE)
+```
+
+22464.60598. I am noticing that GLM and RF tend to perform pretty
+similarly.
+
+#### XgBoost
+
+```{r}
+saleprice_test_xgb <- (predict(test_xgb, test_base, type = "raw")) 
+submission_xgb <- test_base %>%   
+  dplyr::select(Id) %>%   
+  mutate(SalePrice = saleprice_test_xgb) 
+
+write.csv(submission_xgb, 'submission_xgb.csv', row.names = FALSE)
+```
+
+20666.83323. First time using this one and I think I like it except for
+the training time compute. I'm curious why it did so well in training
+and then not so well here, maybe overfitting.
+
+This places me at position #3322 on the leaderboard as of the time of
+this writing, under the username Teoshen.
+
+You can view this on my github as well,
+<https://github.com/Teoshen/HousingPricesML>/tree/main
